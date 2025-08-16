@@ -55,6 +55,10 @@
 #define Tree TreeOf(pascal_type)
 #define _tree treeof(snake_type)
 
+
+#ifndef HELPER_FN_MACROS
+#define HELPER_FN_MACROS
+
 // Helper macros to define functions
 #define function(prefix, action) prefix##_##action
 #define func(prefix, action) function(prefix, action)
@@ -66,6 +70,7 @@
 #define _func(prefix, action) _function(prefix, action)
 #define _fn(action) _func(_tree, action) // -> Evaluates to _tree_<T>_<action>
 
+#endif // HELPER_FN_MACROS
 
 /****************************** Alloc functions *******************************/
 #ifndef TREE_FUNC_TYPES_H
@@ -120,8 +125,12 @@ typedef enum {
 #define _node nodeof(snake_type)
 
 // Helper macro for node functions
+#ifndef NODE_FN_HELPER_MACRO
+#define NODE_FN_HELPER_MACRO
+
 #define nodefn(action) _func(_node, action)
 
+#endif // NODE_FN_HELPER_MACRO
 
 // Typedef for the TreeNode
 typedef struct Node Node;
