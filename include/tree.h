@@ -94,14 +94,6 @@ typedef void (*TreeFreeFn)(void *);
 typedef int (*TreeComparator)(const void *, const void *, size_t);
 #endif
 /**************************** Node Implementation *****************************/
-// Helper Macros for the node
-#define _Node(t) Node##t
-#define __node(t) node_##t
-#define NodeOf(t) _Node(t)
-#define nodeof(t) __node(t)
-#define Node NodeOf(pascal_type)
-#define _node nodeof(snake_type)
-
 // These are type agnostic types
 #ifndef TREE_HELPER_TYPES_H
 #define TREE_HELPER_TYPES_H
@@ -116,11 +108,58 @@ typedef enum {
     LeftRot,
     RightRot,
 } RotationDir;
-
 #endif // TREE_HELPER_TYPES_H
 
 
+// Helper Macros for the node
+#define _Node(t) Node##t
+#define __node(t) node_##t
+#define NodeOf(t) _Node(t)
+#define nodeof(t) __node(t)
+#define Node NodeOf(pascal_type)
+#define _node nodeof(snake_type)
 
+// Helper macro for node functions
+#define nodefn(action) _func(_node, action)
+
+
+// Typedef for the TreeNode
+typedef struct Node Node;
+
+struct Node {
+    uint64_t height;
+    Node *parent;
+    Node *left;
+    Node *right;
+    T value;
+};
+
+
+static inline Node *nodefn(init)(const T value, const Node *parent, TreeAllocFn alloc) {
+    // Sanity check for the alloc func
+    TreeAllocFn l_alloc = alloc;
+    if (alloc == NULL) {
+        l_alloc = malloc;
+    }
+    // Allocate node
+    Node *new_node = l_alloc(sizeof(Node));
+    if (new_node == NULL) {
+        return NULL;
+    }
+    // Assign values
+    new_node->parent = (Node *)parent;
+    new_node->value = value;
+    new_node->height = 1;
+    new_node->left = NULL;
+    new_node->right = NULL;
+
+    return new_node;
+}
+
+
+static inline void nodefn(free)(Node *node, TreeFreeFn dealloc) {
+    dealloc(node);
+}
 
 
 
