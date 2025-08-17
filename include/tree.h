@@ -98,6 +98,11 @@ typedef void (*TreeFreeFn)(void *);
 ///   - size_t: how many bytes o compare
 typedef int (*TreeComparator)(const void *, const void *, size_t);
 #endif
+
+
+
+
+
 /**************************** Node Implementation *****************************/
 // These are type agnostic types
 #ifndef TREE_HELPER_TYPES_H
@@ -395,9 +400,170 @@ static inline void fn(insert)(Tree *tree, const T value) {
 }
 
 
+static const Node *_fn(lookup_node)(const Tree *tree, const T value) {
+    Node *cur_node = tree->root;
+    int compare_value;
+    while (cur_node != NULL) {
+        compare_value = tree->comp(&value, &cur_node->value, sizeof(T));
+        if (compare_value == 0) {
+            return cur_node;
+        } else if (compare_value < 0) { // Go left
+            cur_node = cur_node->left;
+        } else { // Go right
+            cur_node = cur_node->right;
+        }
+    }
+    return NULL;
+}
 
 
 
+
+static inline const T *fn(lookup)(const Tree *tree, const T value) {
+    // Sanity check
+    if (tree == NULL) {
+        return NULL;
+    }
+
+
+    // Find node
+    const Node *found_node = _fn(lookup_node)(tree, value);
+
+    if (found_node == NULL) {
+        return NULL;
+    }
+
+    // return value
+    return &found_node->value;
+}
+
+
+static void _fn(free_nodes)(Node *root, TreeFreeFn dealloc) {
+    if (root == NULL) {
+        return;
+    } else if (root->left == NULL && root->right == NULL) {
+        nodefn(free)(root, dealloc);
+    } else {
+        _fn(free_nodes)(root->left, dealloc);
+        _fn(free_nodes)(root->right, dealloc);
+        nodefn(free)(root, dealloc);
+    }
+}
+
+
+static inline void fn(delete)(Tree *tree, const T value) {
+    // Sanity check
+    if (tree == NULL) {
+        return;
+    }
+
+    // find node to delete
+    Node *to_delete = (Node *) _fn(lookup_node)(tree, value);
+    Node *to_del_parent = to_delete->parent;
+    if (to_delete == NULL) {
+        return;
+    }
+    while (to_delete != NULL) {
+        if (to_delete->left != NULL && to_delete->right != NULL) {
+            // Find next greater
+            Node *next = to_delete->left;
+            while (next->right != NULL) {
+                next = next->right;
+            }
+            // Replace value
+            to_delete-> value = next->value;
+
+            // Now delete the next
+            to_delete = next;
+        } else if (to_delete->left != NULL) {
+            const Direction dir = nodefn(dir)(to_delete);
+            switch (dir) {
+            case Left:
+                to_delete->parent->left = to_delete->left;
+                to_delete->left->parent = to_delete->parent;
+                break;
+            case Right:
+                to_delete->parent->right = to_delete->left;
+                to_delete->left->parent = to_delete->parent;
+                break;
+            case Root:
+                tree->root = to_delete->left;
+                to_delete->left->parent = NULL;
+                break;
+            case Fail:
+                break;
+            }
+            nodefn(free)(to_delete, tree->dealloc);
+            break;
+        } else if (to_delete->right != NULL) {
+            const Direction dir = nodefn(dir)(to_delete);
+            switch (dir) {
+            case Left:
+                to_delete->parent->left = to_delete->right;
+                to_delete->right->parent = to_delete->parent;
+                break;
+            case Right:
+                to_delete->parent->right = to_delete->right;
+                to_delete->right->parent = to_delete->parent;
+                break;
+            case Root:
+                tree->root = to_delete->right;
+                to_delete->right->parent = NULL;
+                break;
+            case Fail:
+                break;
+            }
+            nodefn(free)(to_delete, tree->dealloc);
+            break;
+        } else { // Both are NULL
+            const Direction dir = nodefn(dir)(to_delete);
+            switch (dir) {
+            case Left:
+                to_delete->parent->left = NULL;
+                break;
+            case Right:
+                to_delete->parent->right = NULL;
+                break;
+            case Root:
+                tree->root = NULL;
+                break;
+            case Fail:
+                break;
+            }
+            nodefn(free)(to_delete, tree->dealloc);
+            break;
+        }
+
+        if (to_del_parent == NULL) {
+            return;
+        }
+        const Direction dir = nodefn(dir)(to_del_parent);
+
+        switch (dir) {
+        case Left:
+            to_del_parent->parent->left = nodefn(balance)(to_del_parent);
+            break;
+        case Right:
+            to_del_parent->parent->right = nodefn(balance)(to_del_parent);
+            break;
+        case Root:
+            tree->root = nodefn(balance)(to_del_parent);
+            break;
+        case Fail:
+            break;
+        }
+    }
+}
+
+
+
+static inline fn(free)(Tree *tree) {
+    // Free all nodes
+    _fn(free_nodes)(tree->root, tree->dealloc);
+
+    TreeFreeFn dealloc = tree->dealloc;
+    dealloc(tree);
+}
 
 
 
