@@ -1,5 +1,5 @@
 // Libraries
-#include<stddef.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -56,9 +56,6 @@
 #define _tree treeof(snake_type)
 
 
-#ifndef HELPER_FN_MACROS
-#define HELPER_FN_MACROS
-
 // Helper macros to define functions
 #define function(prefix, action) prefix##_##action
 #define func(prefix, action) function(prefix, action)
@@ -70,7 +67,6 @@
 #define _func(prefix, action) _function(prefix, action)
 #define _fn(action) _func(_tree, action) // -> Evaluates to _tree_<T>_<action>
 
-#endif // HELPER_FN_MACROS
 
 /****************************** Alloc functions *******************************/
 #ifndef TREE_FUNC_TYPES_H
@@ -124,13 +120,8 @@ typedef enum {
 #define Node NodeOf(pascal_type)
 #define _node nodeof(snake_type)
 
-// Helper macro for node functions
-#ifndef NODE_FN_HELPER_MACRO
-#define NODE_FN_HELPER_MACRO
-
 #define nodefn(action) _func(_node, action)
 
-#endif // NODE_FN_HELPER_MACRO
 
 // Typedef for the TreeNode
 typedef struct Node Node;
@@ -186,12 +177,22 @@ static inline void nodefn(free)(Node *node, TreeFreeFn dealloc) {
 #undef _tree
 
 
+#undef function
+#undef func
+#undef fn
+#undef _function
+#undef _func
+#undef _fn
+
+
+
 #undef _Node
 #undef __node
 #undef NodeOf
 #undef nodeof
 #undef Node
 #undef _node
+#undef nodefn
 
 
 #endif // TREE_TYPE_H
