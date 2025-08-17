@@ -1,4 +1,5 @@
 // Libraries
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -67,6 +68,9 @@
 #define _func(prefix, action) _function(prefix, action)
 #define _fn(action) _func(_tree, action) // -> Evaluates to _tree_<T>_<action>
 
+// Other helper macros
+#define min(x,y) (((x) < (y)) ? (x) : (y))
+#define max(x,y) (((x) > (y)) ? (x) : (y))
 
 /****************************** Alloc functions *******************************/
 #ifndef TREE_FUNC_TYPES_H
@@ -113,7 +117,7 @@ typedef enum {
 
 
 // Helper Macros for the node
-#define _Node(t) Node##t
+#define _Node(t) TreeNode##t
 #define __node(t) node_##t
 #define NodeOf(t) _Node(t)
 #define nodeof(t) __node(t)
@@ -163,6 +167,240 @@ static inline void nodefn(free)(Node *node, TreeFreeFn dealloc) {
 
 
 
+static inline Direction nodefn(dir)(const Node *node) {
+    assert(node != NULL);
+    if (node->parent == NULL) {
+        return Root;
+    }
+    if (node->parent->left == node) {
+        return Left;
+    }
+    if (node->parent->right == node) {
+        return Right;
+    }
+    // Something's not right
+    return Fail;
+}
+
+
+static inline uint64_t nodefn(height)(const Node *node) {
+    if (node != NULL) {
+        return node->height;
+    } else {
+        return 0;
+    }
+}
+
+
+// NOTE:
+// return_val < 0 ==> Right heavy
+// return_val > 0 ==> Left heavy
+static inline int64_t nodefn(get_balance)(const Node *node) {
+    if (node != NULL) {
+        return nodefn(height)(node->left) - nodefn(height)(node->right);
+    } else {
+        return 0;
+    }
+}
+
+
+
+static inline void nodefn(update_height)(Node *node) {
+    if (node == NULL) {
+        return;
+    }
+    node->height = 1 + max(nodefn(height)(node->left), nodefn(height)(node->right));
+}
+
+
+
+
+static inline Node *nodefn(rotate)(Node *node, const RotationDir dir) {
+    // NULL checks
+    if (node == NULL) {
+        return NULL;
+    }
+
+    Node *old_root = node, *old_parent = node->parent;
+    Node *new_root, *inner_grandchild;
+    switch (dir) {
+    case Left:
+        new_root = node->right;
+        inner_grandchild = new_root->left;
+        new_root->left = old_root;
+        old_root->right = inner_grandchild;
+        old_root->parent = new_root;
+        new_root->parent = old_parent;
+        nodefn(update_height)(old_root);
+        nodefn(update_height)(new_root);
+        break;
+    case Right:
+        new_root = node->left;
+        inner_grandchild = new_root->right;
+        new_root->right = old_root;
+        old_root->left = inner_grandchild;
+        nodefn(update_height)(old_root);
+        nodefn(update_height)(new_root);
+        break;
+    }
+    return new_root;
+}
+
+
+
+
+
+static inline Node *nodefn(balance)(Node *node) {
+    if (node == NULL) {
+        return NULL;
+    }
+    int balance_value = nodefn(get_balance)(node);
+    if (balance_value <= -2) { // Is right heavy -> rotate left
+        int inner_bal = nodefn(get_balance)(node->right);
+        if (inner_bal >= 1) {
+            node->right = nodefn(rotate)(node->right, RightRot);
+        }
+        return nodefn(rotate)(node, LeftRot);
+
+    } else if (balance_value >= 2) { // Is left heavy -> rotate right
+        int inner_bal = nodefn(get_balance)(node->left);
+        if (inner_bal <= -1) {
+            node->left = nodefn(rotate)(node->left, LeftRot);
+        }
+        return nodefn(rotate)(node, RightRot);
+    }
+    return node;
+}
+
+
+
+/********************************* Tree ***************************************/
+
+typedef struct {
+    Node *root;
+    TreeAllocFn alloc;
+    TreeFreeFn dealloc;
+    TreeComparator comp;
+} Tree;
+
+
+
+
+static inline Tree *fn(init)(const TreeAllocFn alloc, const TreeFreeFn dealloc, const TreeComparator comp) {
+    // Check if alloc and free could be NULL
+    TreeAllocFn local_alloc = alloc;
+    TreeFreeFn local_free = dealloc;
+    if (alloc == NULL || dealloc == NULL) {
+        local_alloc = malloc;
+        local_free = free;
+    }
+    // Allocate space on heap
+    Tree *new_tree = local_alloc(sizeof(Tree));
+    if (new_tree == NULL) {
+        return NULL;
+    }
+    // Assign fields
+    new_tree->alloc = local_alloc;
+    new_tree->dealloc = local_free;
+    new_tree->root = NULL;
+    new_tree->comp = comp == NULL ? memcmp : comp;
+
+    return new_tree;
+}
+
+
+
+static inline void fn(insert)(Tree *tree, const T value) {
+    // Sanity check
+    if (tree == NULL || tree->comp == NULL || 
+            tree->alloc == NULL || tree->dealloc == NULL) {
+        return;
+    }
+
+    // This is the first insertion
+    if (tree->root == NULL) {
+        tree->root = nodefn(init)(value, NULL, tree->alloc);
+        if (tree->root == NULL) {
+            return;
+        }
+        return;
+    }
+
+    // Create new node that will be added to the tree
+    Node *new_node = nodefn(init)(value, NULL, tree->alloc);
+    if (new_node == NULL) {
+        return;
+    }
+
+    // Find the parent of the new node
+    Node *parent = tree->root;
+    while (parent != NULL) {
+        int compval = tree->comp(&value, &parent->value, sizeof(T)); 
+
+        if (compval == 0) { // NO duplicates!!
+            // We have to free this node first
+            nodefn(free)(new_node, tree->dealloc);
+            return;
+        } else if (compval < 0) { // Go left
+            if (parent->left == NULL) {
+                // Set for parent node
+                parent->left = new_node;
+                new_node->parent = parent;
+                break;
+            }
+            // Keep going
+            parent = parent->left;
+        } else if (compval > 0) { // Go right
+            if (parent->right == NULL) {
+                // Set for parent node
+                parent->right = new_node;
+                new_node->parent = parent;
+                break;
+            }
+            // Keep going
+            parent = parent->right;
+        }
+    }
+    // Parent cannot be null
+    assert(parent != NULL);
+
+    // We have to rotate the grand parent node
+    Node *g_parent = parent->parent;
+
+    // update heights
+    while (parent != NULL) {
+        nodefn(update_height)(parent);
+        parent = parent->parent;
+    }
+
+    if (g_parent == NULL) {
+        return;
+    }
+    const Direction dir = nodefn(dir)(g_parent);
+    assert(dir != Fail && "Getting direction failed\n");
+
+    switch (dir) {
+    case Left:
+        g_parent->parent->left = nodefn(balance)(g_parent);
+        break;
+    case Right:
+        g_parent->parent->right = nodefn(balance)(g_parent);
+        break;
+    case Root:
+        tree->root = nodefn(balance)(g_parent);
+        break;
+    case Fail:
+        break;
+    }
+}
+
+
+
+
+
+
+
+
 
 
 
@@ -183,6 +421,8 @@ static inline void nodefn(free)(Node *node, TreeFreeFn dealloc) {
 #undef _function
 #undef _func
 #undef _fn
+#undef max
+#undef min
 
 
 
